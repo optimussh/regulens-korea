@@ -13,7 +13,8 @@ import {
   Layers, 
   Quote, 
   Building, 
-  Calendar 
+  Calendar,
+  Printer
 } from "lucide-react";
 
 export default function InspectorModal({ doc, onClose }) {
@@ -28,8 +29,13 @@ export default function InspectorModal({ doc, onClose }) {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
     <div 
+      className="modal-overlay"
       style={{
         position: "fixed",
         inset: 0,
@@ -44,7 +50,8 @@ export default function InspectorModal({ doc, onClose }) {
       onClick={onClose}
     >
       <div 
-        className="glass-panel"
+        id="printable-report"
+        className="glass-panel modal-content"
         style={{
           width: "100%",
           maxWidth: "1320px",
@@ -59,8 +66,23 @@ export default function InspectorModal({ doc, onClose }) {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Modal Top Header */}
+        {/* Printable Executive Document Header (Visible primarily in print) */}
+        <div className="print-only-header" style={{ display: "none" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "2px solid #0f172a", paddingBottom: "10px", marginBottom: "16px" }}>
+            <div>
+              <div style={{ fontSize: "18pt", fontWeight: 800, color: "#0f172a" }}>ReguLens Korea | 제약·바이오 GMP 실사 One-Pager 보고서</div>
+              <div style={{ fontSize: "9pt", color: "#475569" }}>공식 문서번호: {doc.doc_number} | 발행기관: {doc.source_name || doc.source} | 출력일시: {new Date().toLocaleDateString('ko-KR')}</div>
+            </div>
+            <div style={{ textAlign: "right", fontSize: "9pt", color: "#475569" }}>
+              <div><strong>대상 제조소:</strong> {doc.company_name} ({doc.country})</div>
+              <div><strong>위험도 등급:</strong> {doc.severity_level}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Modal Top Header (Screen UI) */}
         <div 
+          className="modal-header-screen no-print"
           style={{
             padding: "18px 28px",
             borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
@@ -87,7 +109,18 @@ export default function InspectorModal({ doc, onClose }) {
             </span>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            {/* 1-Pager Executive PDF Print Button */}
+            <button
+              id="print-pdf-report-btn"
+              onClick={handlePrint}
+              className="btn-primary"
+              style={{ padding: "7px 14px", fontSize: "0.82rem", background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", boxShadow: "0 0 15px rgba(16, 185, 129, 0.3)" }}
+              title="실무진/경영진 보고용 1-Pager PDF 출력"
+            >
+              <Printer size={14} /> 실무용 1-Pager PDF 출력
+            </button>
+
             {doc.official_url && (
               <a
                 href={doc.official_url}
@@ -96,7 +129,7 @@ export default function InspectorModal({ doc, onClose }) {
                 className="btn-secondary"
                 style={{ padding: "6px 12px", fontSize: "0.78rem" }}
               >
-                원문 공식 링크 <ExternalLink size={13} />
+                원문 링크 <ExternalLink size={13} />
               </a>
             )}
             <button
@@ -124,11 +157,11 @@ export default function InspectorModal({ doc, onClose }) {
         </div>
 
         {/* Modal Body - 2 Columns (Left: Korean QA & CAPA, Right: English Citation & Raw) */}
-        <div style={{ display: "grid", gridTemplateColumns: "1.15fr 0.85fr", flex: 1, overflow: "hidden" }}>
+        <div className="report-columns" style={{ display: "grid", gridTemplateColumns: "1.15fr 0.85fr", flex: 1, overflow: "hidden" }}>
           {/* Left Column: Korean QA Analysis & Action Plan */}
-          <div style={{ padding: "28px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "24px", borderRight: "1px solid rgba(255, 255, 255, 0.08)" }}>
+          <div className="report-left-pane" style={{ padding: "28px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "24px", borderRight: "1px solid rgba(255, 255, 255, 0.08)" }}>
             <div>
-              <h2 style={{ fontSize: "1.45rem", fontWeight: 800, marginBottom: "8px", lineHeight: 1.3 }}>
+              <h2 className="report-title" style={{ fontSize: "1.45rem", fontWeight: 800, marginBottom: "8px", lineHeight: 1.3 }}>
                 {doc.title_kr}
               </h2>
               <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
@@ -136,14 +169,14 @@ export default function InspectorModal({ doc, onClose }) {
                   <span key={idx} className="badge badge-process">{p}</span>
                 ))}
               </div>
-              <div style={{ padding: "16px", borderRadius: "10px", background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255, 255, 255, 0.06)", fontSize: "0.92rem", lineHeight: 1.7, color: "var(--text-primary)" }}>
+              <div className="report-summary-box" style={{ padding: "16px", borderRadius: "10px", background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(255, 255, 255, 0.06)", fontSize: "0.92rem", lineHeight: 1.7, color: "var(--text-primary)" }}>
                 {doc.summary_kr}
               </div>
             </div>
 
             {/* Root Cause Section */}
             {doc.root_cause_analysis && (
-              <div>
+              <div className="report-root-cause">
                 <h3 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "10px", display: "flex", alignItems: "center", gap: "8px", color: "#fb7185" }}>
                   <AlertTriangle size={17} /> 공정 품질 시스템 관점 근본 원인(Root Cause)
                 </h3>
@@ -154,7 +187,7 @@ export default function InspectorModal({ doc, onClose }) {
             )}
 
             {/* 1:1 KGMP & Regulatory Cross-Mapping */}
-            <div>
+            <div className="report-mapping">
               <h3 style={{ fontSize: "1rem", fontWeight: 700, marginBottom: "10px", display: "flex", alignItems: "center", gap: "8px", color: "#34d399" }}>
                 <CheckCircle size={17} /> 국내 식약처(KGMP) 및 글로벌 규정 매핑 대조
               </h3>
@@ -181,12 +214,12 @@ export default function InspectorModal({ doc, onClose }) {
             </div>
 
             {/* Actionable 5-point CAPA Checklist */}
-            <div>
+            <div className="report-capa">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <h3 style={{ fontSize: "1rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "8px", color: "#818cf8" }}>
                   <Layers size={17} /> 현장 즉시 적용 CAPA 점검표 (One-Pager 액션)
                 </h3>
-                <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                <span className="no-print" style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
                   사내 품질회의 / 내부감사 즉시 복사 활용 가능
                 </span>
               </div>
@@ -195,6 +228,7 @@ export default function InspectorModal({ doc, onClose }) {
                 {doc.capa_checklist?.map((item) => (
                   <div
                     key={item.id}
+                    className="capa-item"
                     style={{
                       padding: "14px",
                       borderRadius: "10px",
@@ -229,6 +263,7 @@ export default function InspectorModal({ doc, onClose }) {
                     <button
                       onClick={() => handleCopyCapa(item)}
                       title="CAPA 항목 복사"
+                      className="no-print"
                       style={{
                         padding: "8px",
                         background: copiedId === item.id ? "rgba(16, 185, 129, 0.2)" : "rgba(255, 255, 255, 0.06)",
@@ -251,19 +286,20 @@ export default function InspectorModal({ doc, onClose }) {
           </div>
 
           {/* Right Column: English Original Citation & Raw Text */}
-          <div style={{ padding: "28px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "24px", background: "rgba(10, 15, 29, 0.85)" }}>
+          <div className="report-right-pane" style={{ padding: "28px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "24px", background: "rgba(10, 15, 29, 0.85)" }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px", color: "var(--accent-cyan)" }}>
                 <Quote size={18} />
                 <h3 style={{ fontSize: "1.05rem", fontWeight: 700 }}>영문 원문 핵심 인용 및 신뢰성 증빙 (Citations)</h3>
               </div>
-              <p style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: "14px" }}>
+              <p className="no-print" style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginBottom: "14px" }}>
                 AI의 자의적 해석을 배제하고, 실사관(Investigator)이 직접 지적한 원문 문장을 토대로 신뢰성을 검증합니다.
               </p>
 
               {doc.key_citations?.map((cit, idx) => (
                 <div 
                   key={idx}
+                  className="citation-box"
                   style={{
                     padding: "16px",
                     borderRadius: "10px",
@@ -289,7 +325,7 @@ export default function InspectorModal({ doc, onClose }) {
             </div>
 
             {/* Raw Text Inspector */}
-            <div>
+            <div className="no-print">
               <h4 style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-muted)", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
                 <BookOpen size={14} /> 규제 공문서 전문 텍스트 (Raw Transcript)
               </h4>

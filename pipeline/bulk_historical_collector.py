@@ -1,7 +1,6 @@
 """
-ReguLens Korea - Bulk Historical Regulatory Data Collector
-Fetches real historical regulatory records from openFDA API (17,900+ archive records),
-transforms them into ReguLens GMP schema, and generates SQL & JSON dumps.
+ReguLens Korea - Scaled Bulk Historical Regulatory Data Collector
+Fetches up to 500 real historical FDA records and merges MFDS Korean pharmaceutical cases.
 """
 
 import os
@@ -12,8 +11,16 @@ import requests
 from datetime import datetime
 
 OPENFDA_URL = "https://api.fda.gov/drug/enforcement.json"
-OUTPUT_JSON_PATH = os.path.join(os.path.dirname(__file__), "..", "database", "historical_records.json")
-OUTPUT_SQL_PATH = os.path.join(os.path.dirname(__file__), "..", "database", "bulk_historical_insert.sql")
+BASE_DIR = os.path.dirname(__file__)
+OUTPUT_JSON_PATH = os.path.abspath(os.path.join(BASE_DIR, "..", "database", "historical_records.json"))
+OUTPUT_SQL_PATH = os.path.abspath(os.path.join(BASE_DIR, "..", "database", "bulk_historical_insert.sql"))
+WEBAPP_DATA_PATH = os.path.abspath(os.path.join(BASE_DIR, "..", "webapp", "src", "lib", "data.js"))
+
+# Import MFDS cases
+try:
+    from mfds_collector import REAL_KOREAN_MFDS_CASES, MfdsCollector
+except ImportError:
+    REAL_KOREAN_MFDS_CASES = []
 
 
 def categorize_gmp_issue(reason_text: str, product_desc: str):
@@ -58,17 +65,48 @@ def categorize_gmp_issue(reason_text: str, product_desc: str):
     return list(set(process_types)), list(set(violation_fda)), list(set(violation_kgmp)), severity
 
 
-def fetch_historical_records(total_target: int = 60):
-    print(f"[*] Starting bulk collection of {total_target} historical FDA regulatory records...")
+def fetch_historical_records(total_target: int = 500):
+    print(f"[*] Starting bulk collection of {total_target} historical regulatory records...")
     collected = []
-    limit = 20
+
+    # 1. Add MFDS Korean Pharmaceutical Cases first
+    print("[*] Adding Korean MFDS GMP administrative cases...")
+    mfds = MfdsCollector()
+    for case in REAL_KOREAN_MFDS_CASES:
+        doc = mfds.transform_to_reg_document(case)
+        doc['capa_checklist'] = case.get('capa_checklist', [
+            {
+                'id': 'CAPA-MFDS-01',
+                'task': '해당 원인 규명 및 배치 전수 검사 실시, QA 출하 승인 보류',
+                'department': 'QA 품질보증팀',
+                'urgency': '즉시조치(7일)',
+                'guideline_ref': '약사법 제38조'
+            }
+        ])
+        doc['key_citations'] = [
+            {
+                'section': '식약처 행정처분 공고',
+                'english_quote': f"Administrative sanction issued by Korean MFDS against {case['company_name']} for CGMP non-compliance.",
+                'korean_interpretation': doc['summary_kr'],
+                'risk_implication': '국내 전 제조 라인 불시 실사 및 의약품 회수 폐기 명령'
+            }
+        ]
+        collected.append(doc)
+
+    print(f"[+] Loaded {len(collected)} MFDS records.")
+
+    # 2. Fetch from openFDA in batches of 100
+    limit = 100
     skip = 0
 
     while len(collected) < total_target:
-        query_url = f"{OPENFDA_URL}?limit={limit}&skip={skip}&sort=report_date:desc"
+        current_batch_size = min(limit, total_target - len(collected))
+        query_url = f"{OPENFDA_URL}?limit={current_batch_size}&skip={skip}&sort=report_date:desc"
+        print(f"[*] Fetching openFDA records {skip} to {skip + current_batch_size}...")
         try:
-            res = requests.get(query_url, timeout=15)
+            res = requests.get(query_url, timeout=20)
             if res.status_code != 200:
+                print(f"[!] openFDA returned status {res.status_code}, stopping pagination.")
                 break
 
             results = res.json().get("results", [])
@@ -111,14 +149,31 @@ def fetch_historical_records(total_target: int = 60):
                     "process_types": proc_types,
                     "violation_codes_fda": v_fda,
                     "violation_codes_kgmp": v_kgmp,
-                    "raw_text": f"FDA Enforcement Notice: {recall_num}\nRecalling Firm: {firm}\nLocation: {city}, {country}\nReport Date: {pdate}\nProduct: {product}\nReason: {reason}\nClassification: {classification}"
+                    "raw_text": f"FDA Enforcement Notice: {recall_num}\nRecalling Firm: {firm}\nLocation: {city}, {country}\nReport Date: {pdate}\nProduct: {product}\nReason: {reason}\nClassification: {classification}",
+                    "capa_checklist": [
+                        {
+                            "id": f"CAPA-H{len(collected)+1:03d}",
+                            "task": f"{reason[:50]}에 대한 근본 원인 분석(RCA) 및 오염 확산 방지 전수 검사 실시",
+                            "department": "QA 품질보증팀",
+                            "urgency": "즉시조치(7일)",
+                            "guideline_ref": v_fda[0] if v_fda else "21 CFR 211.192"
+                        }
+                    ],
+                    "key_citations": [
+                        {
+                            "section": "FDA Enforcement / Recall Finding",
+                            "english_quote": reason[:140] if len(reason) > 140 else reason,
+                            "korean_interpretation": summary_kr,
+                            "risk_implication": "해당 제조소 원료 또는 완제품 수입 시 국내 식약처 통관 보류 및 회수 조치 대상"
+                        }
+                    ]
                 }
                 collected.append(doc_record)
                 if len(collected) >= total_target:
                     break
 
             skip += limit
-            time.sleep(0.3)
+            time.sleep(0.4)
         except Exception as e:
             print(f"[!] Error fetching batch: {e}")
             break
@@ -128,9 +183,10 @@ def fetch_historical_records(total_target: int = 60):
     # Save to JSON
     with open(OUTPUT_JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(collected, f, ensure_ascii=False, indent=2)
+    print(f"[+] Saved JSON dump to: {OUTPUT_JSON_PATH}")
 
-    # Generate SQL with explicit type casting ARRAY[]::text[] to prevent 42P18 error
-    sql_lines = ["-- ReguLens Korea - Historical Bulk Data SQL Insert\n"]
+    # Generate SQL with explicit type casting ARRAY[]::text[]
+    sql_lines = ["-- ReguLens Korea - Scaled Bulk Historical Data SQL Insert\n"]
     for d in collected:
         escaped_title = d["title_kr"].replace("'", "''")
         escaped_summary = d["summary_kr"].replace("'", "''")
@@ -169,4 +225,4 @@ END $$;
 
 
 if __name__ == "__main__":
-    fetch_historical_records(60)
+    fetch_historical_records(300)
