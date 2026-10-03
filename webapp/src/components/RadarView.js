@@ -11,7 +11,8 @@ import {
   Clock, 
   ArrowUpRight,
   TrendingUp,
-  Cpu
+  Cpu,
+  Network
 } from "lucide-react";
 
 export default function RadarView({ documents, onSelectDoc, onNavigateTab }) {
@@ -71,6 +72,14 @@ export default function RadarView({ documents, onSelectDoc, onNavigateTab }) {
               style={{ background: "rgba(99, 102, 241, 0.12)", borderColor: "rgba(99, 102, 241, 0.3)" }}
             >
               AI 공정 검토 에이전트 질문 <Cpu size={16} color="#818cf8" />
+            </button>
+            <button 
+              id="hero-graph-btn"
+              className="btn-secondary" 
+              onClick={() => onNavigateTab("graph")}
+              style={{ background: "rgba(139, 92, 246, 0.15)", borderColor: "rgba(139, 92, 246, 0.35)", color: "#c4b5fd" }}
+            >
+              지식 그래프 & 전이 시뮬레이터 <Network size={16} color="#a78bfa" />
             </button>
           </div>
         </div>

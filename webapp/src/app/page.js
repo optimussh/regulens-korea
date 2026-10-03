@@ -10,12 +10,14 @@ import {
   Activity, 
   ExternalLink,
   Layers,
-  Database
+  Database,
+  Network
 } from "lucide-react";
 
 import RadarView from "@/components/RadarView";
 import SearchFilterView from "@/components/SearchFilterView";
 import SupplyWatchdogView from "@/components/SupplyWatchdogView";
+import KnowledgeGraphView from "@/components/KnowledgeGraphView";
 import AiAgentChatView from "@/components/AiAgentChatView";
 import BenchmarkView from "@/components/BenchmarkView";
 import InspectorModal from "@/components/InspectorModal";
@@ -92,6 +94,13 @@ export default function Home() {
               <ShieldAlert size={15} /> 공급망 워치독
             </button>
             <button
+              id="tab-graph-btn"
+              className={`nav-tab-btn ${activeTab === "graph" ? "active" : ""}`}
+              onClick={() => setActiveTab("graph")}
+            >
+              <Network size={15} /> 지식 그래프 (온톨로지)
+            </button>
+            <button
               id="tab-agent-btn"
               className={`nav-tab-btn ${activeTab === "agent" ? "active" : ""}`}
               onClick={() => setActiveTab("agent")}
@@ -139,6 +148,12 @@ export default function Home() {
         {activeTab === "watchdog" && (
           <SupplyWatchdogView 
             watchlists={watchlists} 
+            onSelectVendor={handleSelectVendorFromWatchdog}
+          />
+        )}
+
+        {activeTab === "graph" && (
+          <KnowledgeGraphView 
             onSelectVendor={handleSelectVendorFromWatchdog}
           />
         )}
